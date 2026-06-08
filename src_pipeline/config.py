@@ -78,7 +78,7 @@ CONFIG = {
     "valid_employment_types": {"Full-Time", "Part-Time", "Contractor"},
     "valid_currencies": {"USD", "EUR", "GBP"},
     "salary_min_usd": 15_000,
-    "salary_max_usd": 2_000_000,
+    "salary_max_usd": 10_000_000,
     "hire_date_min": "1970-01-01",
     "employee_id_pattern": r"^(GT|AC)-\d{6}$",
     "email_regex": r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$",

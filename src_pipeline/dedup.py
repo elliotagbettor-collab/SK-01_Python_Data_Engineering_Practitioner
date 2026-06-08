@@ -34,38 +34,48 @@ def pass1_exact_id(df: pd.DataFrame) -> pd.DataFrame:
     For every unique employee_id, merge all source rows by taking the first
     non-null value for each field from the highest-priority source.
 
-    source_systems  →  comma-joined list of all contributing sources
-    dedup_method    →  'exact_id' if merged across sources; 'single_source' otherwise
+    Uses vectorised pandas groupby.first() for performance on 50k+ rows.
+    Sorts by priority so first() returns the highest-priority non-null value.
+
+    source_systems  ->  comma-joined sorted list of contributing sources
+    dedup_method    ->  'exact_id' if merged across sources; 'single_source' otherwise
     """
     before = len(df)
     df = df.copy()
     df["_priority"] = df["source_system"].apply(_priority)
     df = df.sort_values(["employee_id", "_priority"]).reset_index(drop=True)
 
-    skip_cols = {"_priority", "source_systems", "dedup_method", "source_system"}
-    merge_cols = [c for c in df.columns if c not in skip_cols and c != "employee_id"]
+    # Build provenance: comma-joined sorted unique source names per employee_id
+    provenance = (
+        df.groupby("employee_id")["source_system"]
+        .apply(lambda x: ",".join(sorted(set(x.dropna().tolist()))))
+        .rename("source_systems")
+        .reset_index()
+    )
 
-    result_rows = []
-    for emp_id, group in df.groupby("employee_id", sort=False):
-        row: dict = {"employee_id": emp_id}
-        all_sources = sorted(group["source_system"].dropna().unique().tolist())
+    # Replace sentinel empty strings so groupby.first() skips them correctly
+    str_cols = [c for c in df.columns if df[c].dtype == object]
+    for col in str_cols:
+        df[col] = df[col].replace({"": pd.NA, "nan": pd.NA, "<NA>": pd.NA, "None": pd.NA})
 
-        for col in merge_cols:
-            col_vals = group[col].dropna()
-            non_empty = col_vals[col_vals.astype(str).str.strip().ne("").ne("nan")]
-            row[col] = non_empty.iloc[0] if len(non_empty) > 0 else pd.NA
+    # Drop meta columns before groupby to avoid conflicts
+    df = df.drop(columns=["_priority", "source_system", "source_systems", "dedup_method"],
+                 errors="ignore")
 
-        row["source_systems"] = ",".join(all_sources)
-        row["dedup_method"] = "exact_id" if len(all_sources) > 1 else "single_source"
-        result_rows.append(row)
+    # groupby.first() returns first non-null per group (sorted = highest priority wins)
+    deduped = df.groupby("employee_id", sort=False).first().reset_index()
 
-    result = pd.DataFrame(result_rows).reset_index(drop=True)
-    removed = before - len(result)
+    deduped = deduped.merge(provenance, on="employee_id", how="left")
+    deduped["dedup_method"] = deduped["source_systems"].apply(
+        lambda s: "exact_id" if "," in str(s) else "single_source"
+    )
+
+    removed = before - len(deduped)
     logger.info(
-        f"Pass 1 (exact_id): {before:,} → {len(result):,} records "
+        f"Pass 1 (exact_id): {before:,} -> {len(deduped):,} records "
         f"({removed:,} rows merged via coalesce)"
     )
-    return result
+    return deduped.reset_index(drop=True)
 
 
 # ── Pass 2: Email match across companies ─────────────────────────────────────
@@ -91,23 +101,39 @@ def pass2_email_match(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     drop_indices: set[int] = set()
+    # Track loser_id -> winner_id so we can remap manager_id references
+    id_remap: dict[str, str] = {}
+
     for email, emp_ids in dup_emails.items():
         rows = df[df["employee_id"].isin(emp_ids)].copy()
-        rows["_p"] = rows["source_system"].apply(_priority)
+        src_col = "source_systems" if "source_systems" in rows.columns else "source_system"
+        rows["_p"] = rows[src_col].apply(_priority)
         rows = rows.sort_values("_p")
-        winner_idx = rows.index[0]
-        loser_idxs = rows.index[1:]
+        winner_idx    = rows.index[0]
+        winner_emp_id = rows.at[winner_idx, "employee_id"]
+        loser_idxs    = rows.index[1:]
 
-        all_sources = ",".join(sorted(set(rows["source_system"].tolist())))
+        for loser_idx in loser_idxs:
+            loser_emp_id = rows.at[loser_idx, "employee_id"]
+            id_remap[loser_emp_id] = winner_emp_id
+
+        all_sources = ",".join(sorted(set(rows[src_col].tolist())))
         df.at[winner_idx, "source_systems"] = all_sources
         df.at[winner_idx, "dedup_method"]   = "email_match"
         drop_indices.update(loser_idxs)
 
     df = df.drop(index=list(drop_indices)).reset_index(drop=True)
+
+    # Remap manager_ids that reference merged-away employee IDs
+    if id_remap and "manager_id" in df.columns:
+        df["manager_id"] = df["manager_id"].apply(
+            lambda mid: id_remap.get(str(mid), mid) if pd.notna(mid) else mid
+        )
+
     removed = before - len(df)
     logger.info(
-        f"Pass 2 (email_match): {before:,} → {len(df):,} records "
-        f"({removed:,} email-duplicate rows merged)"
+        f"Pass 2 (email_match): {before:,} -> {len(df):,} records "
+        f"({removed:,} email-duplicate rows merged, {len(id_remap):,} manager_id refs remapped)"
     )
     return df
 
@@ -176,8 +202,8 @@ def pass3_fuzzy_name(
                     "record_2_name":       rj["_fullname"].title(),
                     "similarity_score":    score,
                     "hire_date_diff_days": diff_days,
-                    "record_1_source":     ri["source_system"],
-                    "record_2_source":     rj["source_system"],
+                    "record_1_source":     ri.get("source_systems", ri.get("source_system", "")),
+                    "record_2_source":     rj.get("source_systems", rj.get("source_system", "")),
                     "recommended_action":  "REVIEW",
                 })
                 df.loc[df["employee_id"] == id_i, "probable_match_flag"] = True

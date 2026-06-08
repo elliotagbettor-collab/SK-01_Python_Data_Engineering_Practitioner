@@ -33,6 +33,7 @@ STANDARD_DEPARTMENTS = {
     "Product", "Sales", "IT", "Legal", "Data Science", "DevOps",
     "Business Development", "Strategy", "Manufacturing", "Executive",
     "Customer Success", "Research & Development", "Accounting",
+    "Communications", "Quality Assurance", "Supply Chain",
 }
 
 _DATE_FORMATS = [
@@ -130,8 +131,11 @@ def namespace_employee_ids(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     def _apply_mgr(row):
-        raw = str(row.get("manager_id", "")).strip()
-        if not raw or raw in ("nan", "None", ""):
+        val = row.get("manager_id")
+        if val is None or (hasattr(pd, "isna") and pd.isna(val)):
+            return pd.NA
+        raw = str(val).strip()
+        if not raw or raw in ("nan", "None", "<NA>", ""):
             return pd.NA
         return _namespace_one_id(
             raw,
@@ -153,7 +157,9 @@ def normalize_employment_types(df: pd.DataFrame) -> pd.DataFrame:
     def _norm(val):
         if pd.isna(val) or not str(val).strip():
             return pd.NA
-        return type_map.get(str(val).strip(), str(val).strip())
+        raw = str(val).strip()
+        # Exact match first, then try title-cased version
+        return type_map.get(raw, type_map.get(raw.title(), raw.title()))
 
     df["employment_type"] = df["employment_type"].apply(_norm)
     return df
@@ -162,13 +168,14 @@ def normalize_employment_types(df: pd.DataFrame) -> pd.DataFrame:
 # ── 4. Department Taxonomy Mapping ────────────────────────────────────────────
 
 _AC_DEPT_ALIASES = {
-    "HR":        "Human Resources",
-    "Tech":      "Engineering",
-    "R&D":       "Research & Development",
-    "Acctg":     "Accounting",
-    "Mktg":      "Marketing",
-    "Biz Dev":   "Business Development",
-    "Cust Succ": "Customer Success",
+    "HR":                    "Human Resources",
+    "Tech":                  "Engineering",
+    "R&D":                   "Research & Development",
+    "Acctg":                 "Accounting",
+    "Mktg":                  "Marketing",
+    "Biz Dev":               "Business Development",
+    "Cust Succ":             "Customer Success",
+    "Information Technology": "IT",
 }
 
 

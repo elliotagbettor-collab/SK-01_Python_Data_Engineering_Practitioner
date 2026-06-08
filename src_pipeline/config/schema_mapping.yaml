@@ -1,0 +1,170 @@
+# Schema Mapping: Source field names → Standard schema
+# Used as reference documentation for all mapping decisions.
+#
+# Standard schema columns:
+#   employee_id, first_name, last_name, email, department, job_title,
+#   hire_date, country, employment_type, manager_id,
+#   base_salary, currency, pay_frequency, bonus_target_pct, effective_date,
+#   plan_type, coverage_level, enrollment_date, premium_employee,
+#   premium_employer, source_system, salary_usd_annual
+
+standard_schema:
+  employee_id:
+    type: str
+    description: Namespaced employee identifier (GT-XXXXXX or AC-XXXXXX)
+    example: GT-001042
+  first_name:
+    type: str
+    description: Given name, title-cased, Unicode NFC
+    example: "O'Brien"
+  last_name:
+    type: str
+    description: Family name, title-cased, supports hyphens
+    example: Van-Der-Berg
+  email:
+    type: str
+    description: Work email address
+    example: john.doe@globaltech.com
+  department:
+    type: str
+    description: Standard department taxonomy (see dept_code_map in config.py)
+    example: Engineering
+  job_title:
+    type: str
+    description: Role/position title
+    example: Data Engineer
+  hire_date:
+    type: datetime64[ns]
+    description: Date employee joined; all sources normalised to this type
+    example: "2022-03-15"
+  country:
+    type: str
+    description: Country of work location (full name)
+    example: United States
+  employment_type:
+    type: str
+    description: "Full-Time | Part-Time | Contractor"
+    example: Full-Time
+  manager_id:
+    type: str
+    description: Namespaced employee_id of direct manager (nullable)
+    example: GT-000566
+  base_salary:
+    type: float
+    description: Raw salary amount in original currency (payroll source only)
+    example: 95000.0
+  currency:
+    type: str
+    description: "ISO 4217 currency code: USD | EUR | GBP"
+    example: USD
+  pay_frequency:
+    type: str
+    description: "Annual | Monthly | Bi-Weekly | Weekly"
+    example: Monthly
+  bonus_target_pct:
+    type: float
+    description: Target bonus as percentage of base salary (payroll source only)
+    example: 15.0
+  effective_date:
+    type: datetime64[ns]
+    description: Date the payroll record became effective
+    example: "2023-06-01"
+  plan_type:
+    type: str
+    description: Benefits plan type (benefits source only)
+    example: Health Insurance
+  coverage_level:
+    type: str
+    description: "Individual | Family | Employee+Spouse | Employee+Child"
+    example: Family
+  enrollment_date:
+    type: datetime64[ns]
+    description: Date employee enrolled in benefits plan
+    example: "2022-01-01"
+  premium_employee:
+    type: float
+    description: Employee's monthly premium contribution (USD)
+    example: 213.74
+  premium_employer:
+    type: float
+    description: Employer's monthly premium contribution (USD)
+    example: 875.07
+  salary_usd_annual:
+    type: float
+    description: "base_salary converted to USD and annualised (derived column)"
+    example: 123900.0
+  source_systems:
+    type: str
+    description: Comma-joined list of all source systems that contributed to this record
+    example: "globaltech_hris,payroll"
+  dedup_method:
+    type: str
+    description: "How duplicates were resolved: exact_id | email_match | fuzzy_name | single_source"
+    example: exact_id
+  company_origin:
+    type: str
+    description: "Partition key: GlobalTech or AcquiredCo (derived from employee_id prefix)"
+    example: GlobalTech
+
+sources:
+
+  globaltech_hris:
+    format: CSV (UTF-8)
+    system: Workday
+    volume: ~15,000 employees
+    known_issues: Department codes may vary by business unit
+    column_mapping:
+      employee_id:     employee_id       # integer → GT-XXXXXX in clean.py
+      first_name:      first_name
+      last_name:       last_name
+      email:           email
+      department:      department        # full names already
+      job_title:       job_title
+      hire_date:       hire_date         # YYYY-MM-DD
+      country:         country
+      employment_type: employment_type   # Full-Time / Part-Time / Contractor
+      manager_id:      manager_id        # integer, nullable → GT-XXXXXX in clean.py
+
+  acquiredco_api:
+    format: JSON (paginated BambooHR API response)
+    system: BambooHR
+    volume: ~3,200 employees
+    known_issues: Employee IDs overlap with GlobalTech number range
+    column_mapping:
+      employee_identifier:       employee_id         # ACQ_XXXXX → AC-XXXXXX in clean.py
+      name.first:                first_name
+      name.last:                 last_name
+      contact.email:             email
+      assignment.department:     department
+      assignment.role:           job_title
+      assignment.hire_timestamp: hire_date           # ISO 8601: YYYY-MM-DDTHH:MM:SS
+      assignment.location:       country
+      employment.type:           employment_type     # FT/PT/CT → expanded in clean.py
+      manager_employee_id:       manager_id          # ACQ_XXXXX → AC-XXXXXX in clean.py
+
+  payroll:
+    format: Excel (.xlsx)
+    system: ADP
+    volume: ~18,500 records
+    known_issues: Salary in mixed currencies (USD/EUR/GBP); some records duplicated
+    column_mapping:
+      employee_id:      employee_id         # integer GT ID → GT-XXXXXX in clean.py
+      source:           payroll_company_source  # used for namespace resolution
+      base_salary:      base_salary
+      currency:         currency            # USD | EUR | GBP
+      pay_frequency:    pay_frequency       # Annual | Monthly | Bi-Weekly
+      bonus_target_pct: bonus_target_pct
+      effective_date:   effective_date      # YYYY-MM-DD
+
+  benefits:
+    format: XML
+    system: MedShield
+    volume: ~12,000 records
+    known_issues: Covers GlobalTech employees only; not all employees are enrolled
+    column_mapping:
+      employee_id:    employee_id         # integer GT ID → GT-XXXXXX in clean.py
+      plan_type:      plan_type
+      coverage_level: coverage_level
+      enrollment_date: enrollment_date    # YYYY-MM-DD
+      premium_employee: premium_employee
+      premium_employer: premium_employer
