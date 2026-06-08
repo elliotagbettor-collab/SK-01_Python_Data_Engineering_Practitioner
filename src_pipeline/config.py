@@ -1,13 +1,90 @@
 from pathlib import Path
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+_SRC_DIR = Path(__file__).resolve().parent
+_ROOT_DIR = _SRC_DIR.parent
 
 CONFIG = {
-    "input_dir": Path("data/raw"),
-    "output_dir": Path("data/processed"),
-    "log_dir": Path("logs"),         # Use environment variable in production
-    "valid_regions": ["US", "EU", "APAC"],
-    "email_regex": r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
-    "quality_threshold": 0.95,         # 95% of records must pass each check
-    "source_priority": {},
+    "input_dir": _SRC_DIR / "data" / "raw",
+    "output_dir": _ROOT_DIR / "data" / "processed",
+    "log_dir": _ROOT_DIR / "logs",
+    "sources": {
+        "globaltech_hris": _SRC_DIR / "data" / "raw" / "globaltech_hris.csv",
+        "acquiredco_api": _SRC_DIR / "data" / "raw" / "acquiredco_api.json",
+        "payroll": _SRC_DIR / "data" / "raw" / "payroll_data.xlsx",
+        "benefits": _SRC_DIR / "data" / "raw" / "benefits_enrollment.xml",
+    },
+    "outputs": {
+        "golden_dataset": _ROOT_DIR / "data" / "processed" / "golden_employees.parquet",
+        "ghost_employees": _ROOT_DIR / "data" / "processed" / "ghost_employees.csv",
+        "probable_matches": _ROOT_DIR / "data" / "processed" / "probable_matches.csv",
+        "validation_report_csv": _ROOT_DIR / "data" / "processed" / "validation_report.csv",
+        "validation_report_html": _ROOT_DIR / "data" / "processed" / "validation_report.html",
+        "eda_report": _ROOT_DIR / "data" / "processed" / "eda_report.png",
+        "dead_letter": _ROOT_DIR / "logs" / "dead_letter.csv",
+    },
+    "id_namespace": {
+        "globaltech_hris": "GT",
+        "acquiredco_api": "AC",
+        "payroll": "GT",
+        "benefits": "GT",
+    },
+    "source_priority": {
+        "globaltech_hris": 1,
+        "acquiredco_api": 2,
+        "payroll": 3,
+        "benefits": 4,
+    },
+    "fx_rates_to_usd": {
+        "USD": 1.00,
+        "EUR": 1.09,
+        "GBP": 1.27,
+    },
+    "dept_code_map": {
+        "ENG-01": "Engineering", "ENG-02": "Engineering",
+        "MKT-01": "Marketing", "MKT-02": "Marketing", "MKT-03": "Marketing",
+        "HR-01": "Human Resources", "HR-02": "Human Resources",
+        "FIN-01": "Finance", "FIN-02": "Finance",
+        "OPS-01": "Operations", "OPS-02": "Operations",
+        "PROD-01": "Product", "PROD-02": "Product",
+        "SALES-01": "Sales", "SALES-02": "Sales",
+        "IT-01": "IT", "IT-02": "IT",
+        "LEGAL-01": "Legal",
+        "DS-01": "Data Science",
+        "DEVOPS-01": "DevOps",
+        "BD-01": "Business Development",
+        "STRAT-01": "Strategy",
+        "MFG-01": "Manufacturing",
+        "EXEC-01": "Executive",
+        "CS-01": "Customer Success",
+        "RD-01": "Research & Development",
+    },
+    "employment_type_map": {
+        "FT": "Full-Time",
+        "PT": "Part-Time",
+        "CT": "Contractor",
+        "Full-Time": "Full-Time",
+        "Part-Time": "Part-Time",
+        "Contractor": "Contractor",
+        "Full Time": "Full-Time",
+        "Part Time": "Part-Time",
+    },
+    "pay_frequency_multiplier": {
+        "Annual": 1,
+        "Monthly": 12,
+        "Bi-Weekly": 26,
+        "Bi-weekly": 26,
+        "Weekly": 52,
+    },
+    "valid_employment_types": {"Full-Time", "Part-Time", "Contractor"},
+    "valid_currencies": {"USD", "EUR", "GBP"},
+    "salary_min_usd": 15_000,
+    "salary_max_usd": 2_000_000,
+    "hire_date_min": "1970-01-01",
+    "employee_id_pattern": r"^(GT|AC)-\d{6}$",
+    "email_regex": r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$",
+    "quality_threshold": 0.95,
+    "pipeline_gate_max_failures": 2,
+    "fuzzy_name_threshold": 88,
+    "hire_date_window_days": 30,
+    "api_page_size": 100,
 }
