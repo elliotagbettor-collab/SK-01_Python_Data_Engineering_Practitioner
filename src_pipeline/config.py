@@ -4,14 +4,14 @@ _SRC_DIR = Path(__file__).resolve().parent
 _ROOT_DIR = _SRC_DIR.parent
 
 CONFIG = {
-    "input_dir": _SRC_DIR / "data" / "raw",
+    "input_dir": _ROOT_DIR / "data" / "raw",
     "output_dir": _ROOT_DIR / "data" / "processed",
     "log_dir": _ROOT_DIR / "logs",
     "sources": {
-        "globaltech_hris": _SRC_DIR / "data" / "raw" / "globaltech_hris.csv",
-        "acquiredco_api": _SRC_DIR / "data" / "raw" / "acquiredco_api.json",
-        "payroll": _SRC_DIR / "data" / "raw" / "payroll_data.xlsx",
-        "benefits": _SRC_DIR / "data" / "raw" / "benefits_enrollment.xml",
+        "globaltech_hris": _ROOT_DIR / "data" / "raw" / "globaltech_hris.csv",
+        "acquiredco_api": _ROOT_DIR / "data" / "raw" / "acquiredco_api.json",
+        "payroll": _ROOT_DIR / "data" / "raw" / "payroll_data.xlsx",
+        "benefits": _ROOT_DIR / "data" / "raw" / "benefits_enrollment.xml",
     },
     "outputs": {
         "golden_dataset": _ROOT_DIR / "data" / "processed" / "golden_employees.parquet",

@@ -10,10 +10,10 @@ GlobalTech Corp has acquired AcquiredCo and needs a unified employee dataset wit
 
 | Source | File | Format | Volume | Known Issues |
 |---|---|---|---|---|
-| GlobalTech HRIS | `src_pipeline/data/raw/globaltech_hris.csv` | CSV UTF-8 | 15,000 rows | — |
-| AcquiredCo HRIS | `src_pipeline/data/raw/acquiredco_api.json` | JSON (paginated) | 3,200 records | IDs overlap with GT range |
-| Combined Payroll | `src_pipeline/data/raw/payroll_data.xlsx` | Excel | 19,000 rows | Mixed currencies; ADP duplicates |
-| Benefits | `src_pipeline/data/raw/benefits_enrollment.xml` | XML | 12,000 enrollments | GT employees only |
+| GlobalTech HRIS | `data/raw/globaltech_hris.csv` | CSV UTF-8 | 15,000 rows | — |
+| AcquiredCo HRIS | `data/raw/acquiredco_api.json` | JSON (paginated) | 3,200 records | IDs overlap with GT range |
+| Combined Payroll | `data/raw/payroll_data.xlsx` | Excel | 19,000 rows | Mixed currencies; ADP duplicates |
+| Benefits | `data/raw/benefits_enrollment.xml` | XML | 12,000 enrollments | GT employees only |
 
 ---
 
